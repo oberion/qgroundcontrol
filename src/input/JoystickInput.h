@@ -54,26 +54,32 @@ public:
 
     const QString& getName();
 
-    const double sdlJoystickMin;
-    const double sdlJoystickMax;
-
 protected:
     int defaultIndex;
-    double calibrationPositive[10];
-    double calibrationNegative[10];
+    int16_t calibrationPositive[10];
+    int16_t calibrationNegative[10];
+	QMutex m_calDataMutex;
     SDL_Joystick* joystick;
     UASInterface* uas;
     QList<int> uasButtonList;
     bool done;
 	QMutex m_doneMutex;
+	bool m_calibrated;
+	QMutex m_calMutex;
 
     // Axis 3 is thrust (CALIBRATION!)
     int thrustAxis;
     int xAxis;
     int yAxis;
     int yawAxis;
+	QMutex m_axisMutex;
     SDL_Event event;
     QString joystickName;
+	int m_thrustDir;
+	int m_xDir;
+	int m_yDir;
+	int m_yawDir;
+	QMutex m_dirMutex;
 
     void init();
 
@@ -96,28 +102,28 @@ signals:
      *
      * @param thrust Thrust, 0%: 0, 100%: 1.0
      */
-    void thrustChanged(int thrust);
+    void thrustChanged(float thrust);
 
     /**
       * @brief X-Axis / forward-backward axis has changed
       *
       * @param x forward / pitch / x axis, front: +1.0, center: 0.0, back: -1.0
       */
-    void xChanged(int x);
+    void xChanged(float x);
 
     /**
       * @brief Y-Axis / left-right axis has changed
       *
       * @param y left / roll / y axis, left: -1.0, middle: 0.0, right: +1.0
       */
-    void yChanged(int y);
+    void yChanged(float y);
 
     /**
       * @brief Yaw / left-right turn has changed
       *
       * @param yaw turn axis, left-turn: -1.0, middle: 0.0, right-turn: +1.0
       */
-    void yawChanged(int yaw);
+    void yawChanged(float yaw);
 
     /**
       * @brief Joystick button has been pressed
@@ -145,6 +151,22 @@ signals:
 
 public slots:
     void setActiveUAS(UASInterface* uas);
+
+protected slots:
+	void newRollAxis(int rollAxis);
+	void newPitchAxis(int pitchAxis);
+	void newYawAxis(int newYawAxis);
+	void newThrustAxis(int newThrustAxis);
+	void newRollDir(int rollDir);
+	void newPitchDir(int pitchDir);
+	void newYawDir(int yawDir);
+	void newThrustDir(int thrustDir);
+
+public:
+	void getInitCalibData(int& rollInput, int& pitchInput, int& yawInput, int& thrustInput, int& rollInv, int& pitchInv, int& yawInv, int& thrustInv);
+	bool getCalibState(void);
+	void setCalibData(int16_t *calibPositive, int16_t *calibNegative);
+	void getValues(int16_t &xValue, int16_t &yValue, int16_t &yawValue, int16_t &thrustValue);
 };
 
 #endif // _JOYSTICKINPUT_H_
