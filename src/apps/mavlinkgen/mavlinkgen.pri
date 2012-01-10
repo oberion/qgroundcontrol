@@ -20,8 +20,7 @@
 
 
 
-INCLUDEPATH += .\
-    ui \
+INCLUDEPATH += ui \
     generator
 
 FORMS += ui/XMLCommProtocolWidget.ui

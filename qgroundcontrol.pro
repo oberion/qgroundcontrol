@@ -42,16 +42,6 @@ RCC_DIR = $${BUILDDIR}/rcc
 MAVLINK_CONF = ""
 DEFINES += MAVLINK_NO_DATA
 
-win32 {
-QMAKE_INCDIR_QT = $$(QTDIR)/include
-QMAKE_LIBDIR_QT = $$(QTDIR)/lib
-QMAKE_UIC = "$$(QTDIR)/bin/uic.exe"
-QMAKE_MOC = "$$(QTDIR)/bin/moc.exe"
-QMAKE_RCC = "$$(QTDIR)/bin/rcc.exe"
-QMAKE_QMAKE = "$$(QTDIR)/bin/qmake.exe"
-}
-
-
 
 #################################################################
 # EXTERNAL LIBRARY CONFIGURATION
@@ -163,15 +153,13 @@ include(src/apps/mavlinkgen/mavlinkgen.pri)
 
 # Include QWT plotting library
 include(src/lib/qwt/qwt.pri)
-DEPENDPATH += . \
-    plugins \
+DEPENDPATH += plugins \
     thirdParty/qserialport/include \
     thirdParty/qserialport/include/QtSerialPort \
     thirdParty/qserialport \
     src/libs/qextserialport
 
-INCLUDEPATH += . \
-    thirdParty/qserialport/include \
+INCLUDEPATH += thirdParty/qserialport/include \
     thirdParty/qserialport/include/QtSerialPort \
     thirdParty/qserialport/src \
     src/libs/qextserialport
@@ -550,6 +538,7 @@ win32:exists(src/lib/opalrt/OpalApi.h):exists(C:/OPAL-RT/RT-LAB7.2.4/Common/bin)
 }
 TRANSLATIONS += es-MX.ts \
     en-US.ts
+
 
 # xbee support
 # libxbee only supported by linux and windows systems
