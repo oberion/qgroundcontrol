@@ -37,27 +37,34 @@ This file is part of the PIXHAWK project
 #include "UAS.h"
 #include "UASManager.h"
 #include "QGC.h"
+#include <QMutexLocker>
+#include <qfile.h>
+#include <qdatastream.h>
+#include <qstring.h>
 
 /**
  * The coordinate frame of the joystick axis is the aeronautical frame like shown on this image:
  * @image html http://pixhawk.ethz.ch/wiki/_media/standards/body-frame.png Aeronautical frame
  */
 JoystickInput::JoystickInput() :
-    sdlJoystickMin(-32768.0f),
-    sdlJoystickMax(32767.0f),
     defaultIndex(0),
     uas(NULL),
     uasButtonList(QList<int>()),
     done(false),
     thrustAxis(3),
-    xAxis(1),
-    yAxis(0),
+    xAxis(0),
+    yAxis(1),
     yawAxis(2),
-    joystickName(tr("Unitinialized"))
+    joystickName(tr("Uninitialized")),
+	m_calibrated(false),
+	m_xDir(1),
+	m_yDir(1),
+	m_yawDir(1),
+	m_thrustDir(1)
 {
     for (int i = 0; i < 10; i++) {
-        calibrationPositive[i] = sdlJoystickMax;
-        calibrationNegative[i] = sdlJoystickMin;
+        calibrationPositive[i] = 32767;
+        calibrationNegative[i] = -32768;
     }
 
     connect(UASManager::instance(), SIGNAL(activeUASSet(UASInterface*)), this, SLOT(setActiveUAS(UASInterface*)));
@@ -65,6 +72,52 @@ JoystickInput::JoystickInput() :
     // Enter main loop
     //start();
 }
+
+JoystickInput::~JoystickInput()
+{
+	{
+		QMutexLocker locker(&m_calMutex);
+		if(this->isRunning() && m_calibrated)
+		{
+			QString name(SDL_JoystickName(defaultIndex));
+			name.append(".txt");
+			QFile out(name);
+			if(out.open(QIODevice::WriteOnly))
+			{
+				QDataStream write(&out);
+				{
+					QMutexLocker locker(&this->m_axisMutex);
+					write << xAxis;
+					write << yAxis;
+					write << yawAxis;
+					write << thrustAxis;
+				}
+				{
+					QMutexLocker locker(&this->m_dirMutex);
+					write << m_xDir;
+					write << m_yDir;
+					write << m_yawDir;
+					write << m_thrustDir;
+				}
+				{
+					QMutexLocker locker(&m_calDataMutex);
+					for(unsigned int i(0);i<10;i++)
+					{
+						write << calibrationPositive[i];
+						write << calibrationNegative[i];
+					}
+				}
+			}
+		}
+	}
+	{
+		QMutexLocker locker(&this->m_doneMutex);
+		done = true;
+	}
+	this->wait();
+	this->deleteLater();
+}
+
 
 void JoystickInput::setActiveUAS(UASInterface* uas)
 {
@@ -122,6 +175,38 @@ void JoystickInput::init()
 
     joystick = SDL_JoystickOpen(defaultIndex);
 
+	QString name(SDL_JoystickName(defaultIndex));
+	name.append(".txt");
+	QFile in(name);
+	if(in.open(QIODevice::ReadOnly))
+	{
+		QDataStream read(&in);
+		{
+			read >> xAxis;
+			read >> yAxis;
+			read >> yawAxis;
+			read >> thrustAxis;
+		}
+		{
+			QMutexLocker locker(&this->m_dirMutex);
+			read >> m_xDir;
+			read >> m_yDir;
+			read >> m_yawDir;
+			read >> m_thrustDir;
+		}
+		{
+			QMutexLocker locker(&m_calDataMutex);
+			for(unsigned int i(0);i<10;i++)
+			{
+				read >> calibrationPositive[i];
+				read >> calibrationNegative[i];
+			}
+		}
+		{
+			QMutexLocker locker(&m_calMutex);
+			m_calibrated = true;
+		}
+	}
     // Make sure active UAS is set
     setActiveUAS(UASManager::instance()->getActiveUAS());
 }
@@ -134,119 +219,158 @@ void JoystickInput::run()
 
     init();
 
-    while(!done) {
-        while(SDL_PollEvent(&event)) {
-
+    forever
+	{
+		{
+			QMutexLocker locker(&this->m_doneMutex);
+			if(done)
+			{
+				done = false;
+				break;
+			}
+		}
+        while(SDL_PollEvent(&event)) 
+		{
             SDL_JoystickUpdate();
-
+			/*
             // Todo check if it would be more beneficial to use the event structure
-            switch(event.type) {
+            switch(event.type) 
+			{
             case SDL_KEYDOWN:
-                /* handle keyboard stuff here */
-                qDebug() << "KEY PRESSED!";
+                // handle keyboard stuff here
+                //qDebug() << "KEY PRESSED!";
                 break;
 
             case SDL_QUIT:
-                /* Set whatever flags are necessary to */
-                /* end the main loop here */
+                // Set whatever flags are necessary to 
+                // end the main loop here 
                 break;
 
-            case SDL_JOYBUTTONDOWN:  /* Handle Joystick Button Presses */
+            case SDL_JOYBUTTONDOWN:  // Handle Joystick Button Presses 
                 if ( event.jbutton.button == 0 ) {
-                    qDebug() << "BUTTON PRESSED!";
+                    //qDebug() << "BUTTON PRESSED!";
                 }
                 break;
 
-            case SDL_JOYAXISMOTION:  /* Handle Joystick Motion */
+            case SDL_JOYAXISMOTION:  // Handle Joystick Motion 
                 if ( ( event.jaxis.value < -3200 ) || (event.jaxis.value > 3200 ) ) {
                     if( event.jaxis.axis == 0) {
-                        /* Left-right movement code goes here */
+                        // Left-right movement code goes here 
                     }
 
                     if( event.jaxis.axis == 1) {
-                        /* Up-Down movement code goes here */
+                        // Up-Down movement code goes here 
                     }
                 }
                 break;
 
             default:
-                qDebug() << "SDL event occured";
+                //qDebug() << "SDL event occured";
                 break;
-            }
+            }*/
         }
 
-        // Display all axes
+        /*// Display all axes
         for(int i = 0; i < SDL_JoystickNumAxes(joystick); i++) {
             //qDebug() << "\rAXIS" << i << "is: " << SDL_JoystickGetAxis(joystick, i);
-        }
+        }*/
+		// THRUST
+		double thrustValue;
+		{
+			QMutexLocker locker(&this->m_axisMutex);
+			QMutexLocker locker2(&m_calDataMutex);
+			thrustValue = ((double)(SDL_JoystickGetAxis(joystick, thrustAxis) - calibrationNegative[0])) / (calibrationPositive[0] - calibrationNegative[0]);
+		}
+		{
+			QMutexLocker locker(&this->m_dirMutex);
+			if(m_thrustDir==-1)
+			{
+				thrustValue = 1.0 - thrustValue;
+			}
+		}
+		// Bound rounding errors
+		if (thrustValue > 1) thrustValue = 1;
+		if (thrustValue < 0) thrustValue = 0;
+		emit thrustChanged((float)thrustValue);
+		// X Axis
+		double xValue;
+		{
+			QMutexLocker locker(&this->m_axisMutex);
+			QMutexLocker locker2(&m_calDataMutex);
+			xValue = ((double)(SDL_JoystickGetAxis(joystick, xAxis) - calibrationNegative[1])) / (calibrationPositive[1] - calibrationNegative[1]);
+		}
+		{
+			QMutexLocker locker(&this->m_dirMutex);
+			xValue = m_xDir*(2.0*xValue - 1.0);
+		}
+		// Bound rounding errors
+		if (xValue > 1.0) xValue = 1.0;
+		if (xValue < -1.0) xValue = -1.0;
+		emit xChanged((float)xValue);
+		// Y Axis
+		double yValue;
+		{
+			QMutexLocker locker(&this->m_axisMutex);
+			QMutexLocker locker2(&m_calDataMutex);
+			yValue = ((double)(SDL_JoystickGetAxis(joystick, yAxis) - calibrationNegative[2])) / (calibrationPositive[2] - calibrationNegative[2]);
+		}
+		{
+			QMutexLocker locker(&this->m_dirMutex);
+			yValue = m_yDir*(2.0*yValue - 1.0);
+		}
+		// Bound rounding errors
+		if (yValue > 1.0) yValue = 1.0;
+		if (yValue < -1.0) yValue = -1.0;
+		emit yChanged((float)yValue);
+		// Yaw Axis
+		double yawValue;
+		{
+			QMutexLocker locker(&this->m_axisMutex);
+			QMutexLocker locker2(&m_calDataMutex);
+			yawValue = ((double)(SDL_JoystickGetAxis(joystick, yawAxis) - calibrationNegative[3])) / (calibrationPositive[3] - calibrationNegative[3]);
+		}
+		{
+			QMutexLocker locker(&this->m_dirMutex);
+			yawValue = m_yawDir*(2.0*yawValue - 1.0);
+		}
+		// Bound rounding errors
+		if (yawValue > 1.0f) yawValue = 1.0f;
+		if (yawValue < -1.0f) yawValue = -1.0f;
+		emit yawChanged((float)yawValue);
+		// Get joystick hat position, convert it to vector
+		int hatPosition = SDL_JoystickGetHat(joystick, 0);
+		int xHat,yHat;
+		xHat = 0;
+		yHat = 0;
+		// Build up vectors describing the hat position
+		//
+		// Coordinate frame for joystick hat:
+		//
+		//    y
+		//    ^
+		//    |
+		//    |
+		//    0 ----> x
+		//
+		if ((SDL_HAT_UP & hatPosition) > 0) yHat = 1;
+		if ((SDL_HAT_DOWN & hatPosition) > 0) yHat = -1;
+		if ((SDL_HAT_LEFT & hatPosition) > 0) xHat = -1;
+		if ((SDL_HAT_RIGHT & hatPosition) > 0) xHat = 1;
+		// Send new values to rest of groundstation
+		emit hatDirectionChanged(xHat, yHat);
+		{
+			QMutexLocker locker(&m_calMutex);
+			if(m_calibrated)
+			{
+				emit joystickChanged(yValue, xValue, yawValue, thrustValue, xHat, yHat);
+			}
+			else
+			{
+				qDebug() << "Joystick not calibrated. No commands are sent to UAS";
+			}
+		}
 
-        // THRUST
-        double thrust = ((double)SDL_JoystickGetAxis(joystick, thrustAxis) - calibrationNegative[thrustAxis]) / (calibrationPositive[thrustAxis] - calibrationNegative[thrustAxis]);
-        // Has to be inverted for Logitech Wingman
-        thrust = 1.0f - thrust;
-        // Bound rounding errors
-        if (thrust > 1) thrust = 1;
-        if (thrust < 0) thrust = 0;
-        emit thrustChanged((float)thrust);
-
-        // X Axis
-        double x = ((double)SDL_JoystickGetAxis(joystick, xAxis) - calibrationNegative[xAxis]) / (calibrationPositive[xAxis] - calibrationNegative[xAxis]);
-        x = 1.0f - x;
-        x = x * 2.0f - 1.0f;
-        // Bound rounding errors
-        if (x > 1.0f) x = 1.0f;
-        if (x < -1.0f) x = -1.0f;
-        emit xChanged((float)x);
-
-        // Y Axis
-        double y = ((double)SDL_JoystickGetAxis(joystick, yAxis) - calibrationNegative[yAxis]) / (calibrationPositive[yAxis] - calibrationNegative[yAxis]);
-        y = 1.0f - y;
-        y = y * 2.0f - 1.0f;
-        // Bound rounding errors
-        if (y > 1.0f) y = 1.0f;
-        if (y < -1.0f) y = -1.0f;
-        emit yChanged((float)y);
-
-        // Yaw Axis
-
-        double yaw = ((double)SDL_JoystickGetAxis(joystick, yawAxis) - calibrationNegative[yawAxis]) / (calibrationPositive[yawAxis] - calibrationNegative[yawAxis]);
-        yaw = 1.0f - yaw;
-        yaw = yaw * 2.0f - 1.0f;
-        // Bound rounding errors
-        if (yaw > 1.0f) yaw = 1.0f;
-        if (yaw < -1.0f) yaw = -1.0f;
-        emit yawChanged((float)yaw);
-
-        // Get joystick hat position, convert it to vector
-        int hatPosition = SDL_JoystickGetHat(joystick, 0);
-
-        int xHat,yHat;
-        xHat = 0;
-        yHat = 0;
-
-        // Build up vectors describing the hat position
-        //
-        // Coordinate frame for joystick hat:
-        //
-        //    y
-        //    ^
-        //    |
-        //    |
-        //    0 ----> x
-        //
-
-        if ((SDL_HAT_UP & hatPosition) > 0) yHat = 1;
-        if ((SDL_HAT_DOWN & hatPosition) > 0) yHat = -1;
-
-        if ((SDL_HAT_LEFT & hatPosition) > 0) xHat = -1;
-        if ((SDL_HAT_RIGHT & hatPosition) > 0) xHat = 1;
-
-        // Send new values to rest of groundstation
-        emit hatDirectionChanged(xHat, yHat);
-        emit joystickChanged(y, x, yaw, thrust, xHat, yHat);
-
-
-        // Display all buttons
+		// Display all buttons
         for(int i = 0; i < SDL_JoystickNumButtons(joystick); i++) {
             //qDebug() << "BUTTON" << i << "is: " << SDL_JoystickGetAxis(joystick, i);
             if(SDL_JoystickGetButton(joystick, i)) {
@@ -264,8 +388,7 @@ void JoystickInput::run()
         }
 
         // Sleep, update rate of joystick is approx. 50 Hz (1000 ms / 50 = 20 ms)
-        QGC::SLEEP::msleep(20);
-
+		this->msleep(20);
     }
 
 }
@@ -273,4 +396,105 @@ void JoystickInput::run()
 const QString& JoystickInput::getName()
 {
     return joystickName;
+}
+
+void JoystickInput::newRollAxis(int rollAxis)
+{
+	QMutexLocker locker(&this->m_axisMutex);
+	yAxis = rollAxis-1;
+	return;
+}
+
+void JoystickInput::newPitchAxis(int pitchAxis)
+{
+	QMutexLocker locker(&this->m_axisMutex);
+	xAxis = pitchAxis-1;
+	return;
+}
+
+void JoystickInput::newYawAxis(int newYawAxis)
+{
+	QMutexLocker locker(&this->m_axisMutex);
+	yawAxis = newYawAxis-1;
+	return;
+}
+
+void JoystickInput::newThrustAxis(int newThrustAxis)
+{
+	QMutexLocker locker(&this->m_axisMutex);
+	thrustAxis = newThrustAxis-1;
+	return;
+}
+
+void JoystickInput::newRollDir(int rollDir)
+{
+	QMutexLocker locker(&this->m_dirMutex);
+	m_yDir = -1*(rollDir - 1);
+	return;
+}
+
+void JoystickInput::newPitchDir(int pitchDir)
+{
+	QMutexLocker locker(&this->m_dirMutex);
+	m_xDir = -1*(pitchDir - 1);
+	return;
+}
+
+void JoystickInput::newYawDir(int yawDir)
+{
+	QMutexLocker locker(&this->m_dirMutex);
+	m_yawDir = -1*(yawDir - 1);
+	return;
+}
+
+void JoystickInput::newThrustDir(int thrustDir)
+{
+	QMutexLocker locker(&this->m_dirMutex);
+	m_thrustDir = -1*(thrustDir - 1);
+	return;
+}
+
+void JoystickInput::getInitCalibData(int& rollInput, int& pitchInput, int& yawInput, int& thrustInput, int& rollInv, int& pitchInv, int& yawInv, int& thrustInv)
+{
+	{
+		QMutexLocker locker(&this->m_axisMutex);
+		rollInput = yAxis+1;
+		pitchInput = xAxis+1;
+		yawInput = yawAxis+1;
+		thrustInput = thrustAxis+1;
+	}
+	{
+		QMutexLocker locker(&this->m_dirMutex);
+		rollInv = m_yDir;
+		pitchInv = m_xDir;
+		yawInv = m_yawDir;
+		thrustInv = m_thrustDir;
+	}
+	return;
+}
+
+bool JoystickInput::getCalibState(void)
+{
+	QMutexLocker locker(&m_calMutex);
+	return m_calibrated;
+}
+
+void JoystickInput::setCalibData(int16_t *calibPositive, int16_t *calibNegative)
+{
+	QMutexLocker locker2(&m_calDataMutex);
+	for (int i = 0; i < 10; i++) 
+	{
+        calibrationPositive[i] = *(calibPositive+i);
+        calibrationNegative[i] = *(calibNegative+i);
+    }
+	QMutexLocker locker(&m_calMutex);
+	m_calibrated = true;
+}
+
+void JoystickInput::getValues(int16_t &xValue, int16_t &yValue, int16_t &yawValue, int16_t &thrustValue)
+{
+	xValue = SDL_JoystickGetAxis(joystick, xAxis);
+	yValue = SDL_JoystickGetAxis(joystick, yAxis);
+	yawValue = SDL_JoystickGetAxis(joystick, yawAxis);
+	thrustValue = SDL_JoystickGetAxis(joystick, thrustAxis);
 }

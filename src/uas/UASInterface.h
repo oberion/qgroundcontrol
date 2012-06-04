@@ -44,6 +44,11 @@ This file is part of the QGROUNDCONTROL project
 #include "QGCUASParamManager.h"
 #include "RadioCalibration/RadioCalibrationData.h"
 
+#ifdef QGC_PROTOBUF_ENABLED
+#include <tr1/memory>
+#include <pixhawk.pb.h>
+#endif
+
 /**
  * @brief Interface for all robots.
  *
@@ -64,6 +69,8 @@ public:
     virtual const QString& getShortState() const = 0;
     /** @brief Get short mode */
     virtual const QString& getShortMode() const = 0;
+    /** @brief Translate mode id into text */
+    static QString getShortModeTextFor(int id);
     //virtual QColor getColor() = 0;
     virtual int getUASID() const = 0; ///< Get the ID of the connected UAS
     /** @brief The time interval the robot is switched on **/
@@ -74,16 +81,25 @@ public:
     virtual double getLocalX() const = 0;
     virtual double getLocalY() const = 0;
     virtual double getLocalZ() const = 0;
+    virtual bool localPositionKnown() const = 0;
 
     virtual double getLatitude() const = 0;
     virtual double getLongitude() const = 0;
     virtual double getAltitude() const = 0;
+    virtual bool globalPositionKnown() const = 0;
 
     virtual double getRoll() const = 0;
     virtual double getPitch() const = 0;
     virtual double getYaw() const = 0;
 
     virtual bool getSelected() const = 0;
+
+#ifdef QGC_PROTOBUF_ENABLED
+    virtual px::PointCloudXYZRGB getPointCloud() const = 0;
+    virtual px::RGBDImage getRGBDImage() const = 0;
+#endif
+
+    virtual bool isArmed() const = 0;
 
     /** @brief Set the airframe of this MAV */
     virtual int getAirframe() const = 0;
@@ -121,7 +137,9 @@ public:
         QGC_AIRFRAME_REAPER,
         QGC_AIRFRAME_PREDATOR,
         QGC_AIRFRAME_COAXIAL,
-        QGC_AIRFRAME_PTERYX
+        QGC_AIRFRAME_PTERYX,
+        QGC_AIRFRAME_TRICOPTER,
+        QGC_AIRFRAME_HEXCOPTER
     };
 
     /**
@@ -176,20 +194,20 @@ public:
 
     /** @brief Get the type of the system (airplane, quadrotor, helicopter,..)*/
     virtual int getSystemType() = 0;
+    virtual QString getSystemTypeName() = 0;
+    /** @brief Get the type of the autopilot (PIXHAWK, APM, UDB, PPZ,..) */
+    virtual int getAutopilotType() = 0;
+    virtual QString getAutopilotTypeName() = 0;
+    virtual void setAutopilotType(int apType)= 0;
 
     QColor getColor() {
         return color;
     }
 
-    virtual int getAutopilotType() = 0;
-    virtual void setAutopilotType(int apType)= 0;
-
 public slots:
 
     /** @brief Set a new name for the system */
     virtual void setUASName(const QString& name) = 0;
-    /** @brief Sets an action **/
-    virtual void setAction(MAV_ACTION action) = 0;
     /** @brief Execute command immediately **/
     virtual void executeCommand(MAV_CMD command) = 0;
     /** @brief Executes a command **/
@@ -240,7 +258,7 @@ public slots:
     /** @brief Request all onboard parameters of all components */
     virtual void requestParameters() = 0;
     /** @brief Request one specific onboard parameter */
-    virtual void requestParameter(int component, int parameter) = 0;
+    virtual void requestParameter(int component, const QString& parameter) = 0;
     /** @brief Write parameter to permanent storage */
     virtual void writeParametersToStorage() = 0;
     /** @brief Read parameter from permanent storage */
@@ -251,7 +269,7 @@ public slots:
      * @warning The length of the ID string is limited by the MAVLink format! Take care to not exceed it
      * @param value Value of the parameter, IEEE 754 single precision floating point
      */
-    virtual void setParameter(const int component, const QString& id, const float value) = 0;
+    virtual void setParameter(const int component, const QString& id, const QVariant& value) = 0;
 
     /**
      * @brief Add a link to the list of current links
@@ -328,6 +346,13 @@ signals:
 
     void navModeChanged(int uasid, int mode, const QString& text);
 
+    /** @brief System is now armed */
+    void armed();
+    /** @brief System is now disarmed */
+    void disarmed();
+    /** @brief Arming mode changed */
+    void armingChanged(bool armed);
+
     /**
      * @brief Update the error count of a device
      *
@@ -352,6 +377,8 @@ signals:
     void dropRateChanged(int systemId,  float receiveDrop);
     /** @brief Robot mode has changed */
     void modeChanged(int sysId, QString status, QString description);
+    /** @brief Robot armed state has changed */
+    void armingChanged(int sysId, QString armingState);
     /** @brief A command has been issued **/
     void commandSent(int command);
     /** @brief The connection status has changed **/
@@ -391,8 +418,8 @@ signals:
     void waypointSelected(int uasId, int id);
     void waypointReached(UASInterface* uas, int id);
     void autoModeChanged(bool autoMode);
-    void parameterChanged(int uas, int component, QString parameterName, float value);
-    void parameterChanged(int uas, int component, int parameterCount, int parameterId, QString parameterName, float value);
+    void parameterChanged(int uas, int component, QString parameterName, QVariant value);
+    void parameterChanged(int uas, int component, int parameterCount, int parameterId, QString parameterName, QVariant value);
     void patternDetected(int uasId, QString patternPath, float confidence, bool detected);
     void letterDetected(int uasId, QString letter, float confidence, bool detected);
     /**
@@ -472,6 +499,9 @@ signals:
     /** @brief Core specifications have changed */
     void systemSpecsChanged(int uasId);
 
+    /** @brief Object detected */
+    void objectDetected(unsigned int time, int id, int type, const QString& name, int quality, float bearing, float distance);
+
 
     // HOME POSITION / ORIGIN CHANGES
     void homePositionChanged(int uas, double lat, double lon, double alt);
@@ -483,6 +513,6 @@ protected:
 
 };
 
-Q_DECLARE_INTERFACE(UASInterface, "org.qgroundcontrol/1.0");
+Q_DECLARE_INTERFACE(UASInterface, "org.qgroundcontrol/1.0")
 
 #endif // _UASINTERFACE_H_

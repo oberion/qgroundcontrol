@@ -44,7 +44,7 @@ class LinkInterface : public QThread
     Q_OBJECT
 public:
     LinkInterface(QObject* parent = 0) : QThread(parent) {}
-    //virtual ~LinkInterface() = 0;
+    virtual ~LinkInterface() { emit this->deleteLink(this); }
 
     /* Connection management */
 
@@ -232,9 +232,12 @@ signals:
     /** @brief Communication error occured */
     void communicationError(const QString& linkname, const QString& error);
 
+	/** @brief destroying element */
+	void deleteLink(LinkInterface* const link);
+
 protected:
     static int getNextLinkId() {
-        static int nextId = 0;
+        static int nextId = 1;
         return nextId++;
     }
 

@@ -6,8 +6,11 @@ tags
 build
 Info.plist
 obj
+*.obj
+.DS_Store
 *.log
 *~
+*~.skp
 bin/*.exe
 bin/*.txt
 bin/mac
@@ -30,9 +33,12 @@ deploy/qgroundcontrol*
 controller_log*
 user_config.pri
 *.app
-
 *.ncb
 *.vcproj
+*.vcxproj*
+*.sdf
+*.ipch
+*.pdb
 *.sln
 *.sln
 *.vcproj
@@ -43,6 +49,10 @@ user_config.pri
 *.cproject
 *.sln
 *.suo
+*.tlog
+*.manifest
+*.lastbuildstate
+*.res
 
 thirdParty/qserialport-build-desktop/
 thirdParty/qserialport/bin/

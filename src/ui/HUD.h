@@ -113,6 +113,9 @@ protected slots:
 
     void drawPolygon(QPolygonF refPolygon, QPainter* painter);
 
+signals:
+    void visibilityChanged(bool visible);
+
 protected:
     void commitRawDataToGL();
     /** @brief Convert reference coordinates to screen coordinates */
@@ -211,6 +214,7 @@ protected:
     QString nextOfflineImage;
     bool hudInstrumentsEnabled;
     bool videoEnabled;
+    bool dataStreamEnabled;
     float xImageFactor;
     float yImageFactor;
     QAction* enableHUDAction;

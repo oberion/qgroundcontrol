@@ -180,12 +180,12 @@ void DebugConsole::addLink(LinkInterface* link)
 
     // Register for name changes
     connect(link, SIGNAL(nameChanged(QString)), this, SLOT(updateLinkName(QString)));
-    connect(link, SIGNAL(destroyed(QObject*)), this, SLOT(removeLink(QObject*)));
+    connect(link, SIGNAL(deleteLink(LinkInterface* const)), this, SLOT(removeLink(LinkInterface* const)));
 }
 
-void DebugConsole::removeLink(QObject* link)
+void DebugConsole::removeLink(LinkInterface* const linkInterface)
 {
-    LinkInterface* linkInterface = dynamic_cast<LinkInterface*>(link);
+    //LinkInterface* linkInterface = dynamic_cast<LinkInterface*>(link);
     // Add link to link list
     if (links.contains(linkInterface)) {
         int linkIndex = links.indexOf(linkInterface);
@@ -194,7 +194,7 @@ void DebugConsole::removeLink(QObject* link)
 
         m_ui->linkComboBox->removeItem(linkIndex);
     }
-    if (link == currLink) currLink = NULL;
+    if (linkInterface == currLink) currLink = NULL;
 }
 
 void DebugConsole::linkSelected(int linkId)
@@ -219,9 +219,14 @@ void DebugConsole::linkSelected(int linkId)
  */
 void DebugConsole::updateLinkName(QString name)
 {
-    // Set name if signal came from a link
+	// Set name if signal came from a link
     LinkInterface* link = qobject_cast<LinkInterface*>(sender());
-    if (link != NULL) m_ui->linkComboBox->setItemText(link->getId(), name);
+	//if (link != NULL) m_ui->linkComboBox->setItemText(link->getId(), name);
+	if((link != NULL) && (links.contains(link)))
+	{
+		const qint16 &linkIndex(links.indexOf(link));
+		m_ui->linkComboBox->setItemText(linkIndex,name);
+	}
 }
 
 void DebugConsole::setAutoHold(bool hold)
@@ -269,8 +274,8 @@ void DebugConsole::receiveTextMessage(int id, int component, int severity, QStri
         case MAV_COMP_ID_MAPPER:
             comp = tr("MAPPER");
             break;
-        case MAV_COMP_ID_WAYPOINTPLANNER:
-            comp = tr("WP-PLANNER");
+        case MAV_COMP_ID_MISSIONPLANNER:
+            comp = tr("MISSION");
             break;
         case MAV_COMP_ID_SYSTEM_CONTROL:
             comp = tr("SYS-CONTROL");
@@ -355,7 +360,7 @@ void DebugConsole::receiveBytes(LinkInterface* link, QByteArray bytes)
         for (int j = 0; j < len; j++)
         {
             unsigned char byte = bytes.at(j);
-            // Filter MAVLink (http://pixhawk.ethz.ch/wiki/mavlink/) messages out of the stream.
+            // Filter MAVLink (http://qgroundcontrol.org/mavlink/) messages out of the stream.
             if (filterMAVLINK)
             {
                 if (this->bytesToIgnore > 0)

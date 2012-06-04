@@ -41,6 +41,10 @@ This file is part of the QGROUNDCONTROL project
 #include "SerialLink.h"
 #include "UDPLink.h"
 #include "MAVLinkSimulationLink.h"
+#ifdef XBEELINK
+#include "XbeeLink.h"
+#include "XbeeConfigurationWindow.h"
+#endif // XBEELINK
 #ifdef OPAL_RT
 #include "OpalLink.h"
 #include "OpalLinkConfigurationWindow.h"
@@ -49,6 +53,7 @@ This file is part of the QGROUNDCONTROL project
 #include "MAVLinkSettingsWidget.h"
 #include "QGCUDPLinkConfiguration.h"
 #include "LinkManager.h"
+#include "MainWindow.h"
 
 CommConfigurationWindow::CommConfigurationWindow(LinkInterface* link, ProtocolInterface* protocol, QWidget *parent, Qt::WindowFlags flags) : QWidget(parent, flags)
 {
@@ -62,6 +67,9 @@ CommConfigurationWindow::CommConfigurationWindow(LinkInterface* link, ProtocolIn
     ui.linkType->addItem(tr("UDP"), QGC_LINK_UDP);
     ui.linkType->addItem(tr("Simulation"), QGC_LINK_SIMULATION);
     ui.linkType->addItem(tr("Opal-RT Link"), QGC_LINK_OPAL);
+#ifdef XBEELINK
+	ui.linkType->addItem(tr("Xbee API"),QGC_LINK_XBEE);
+#endif // XBEELINK
     ui.linkType->setEditable(false);
     //ui.linkType->setEnabled(false);
 
@@ -73,7 +81,7 @@ CommConfigurationWindow::CommConfigurationWindow(LinkInterface* link, ProtocolIn
     // Connect the current UAS
     action = new QAction(QIcon(":/images/devices/network-wireless.svg"), "", this);
     LinkManager::instance()->add(link);
-    action->setData(LinkManager::instance()->getLinks().indexOf(link));
+	action->setData(link->getId());
     action->setEnabled(true);
     action->setVisible(true);
     setLinkName(link->getName());
@@ -88,6 +96,7 @@ CommConfigurationWindow::CommConfigurationWindow(LinkInterface* link, ProtocolIn
     connect(ui.deleteButton, SIGNAL(clicked()), this, SLOT(remove()));
 
     connect(this->link, SIGNAL(connected(bool)), this, SLOT(connectionState(bool)));
+
 
     // Fill in the current data
     if(this->link->isConnected()) ui.connectButton->setChecked(true);
@@ -142,14 +151,32 @@ CommConfigurationWindow::CommConfigurationWindow(LinkInterface* link, ProtocolIn
         ui.linkGroupBox->setTitle(tr("Opal-RT Link"));
     }
 #endif
+#ifdef XBEELINK
+	XbeeLink* xbee = dynamic_cast<XbeeLink*>(link); // new Konrad
+	if(xbee != 0)
+	{
+		QWidget* conf = new XbeeConfigurationWindow(xbee,this); 
+		ui.linkScrollArea->setWidget(conf);
+		ui.linkGroupBox->setTitle(tr("Xbee Link"));
+		ui.linkType->setCurrentIndex(4);
+		connect(xbee,SIGNAL(tryConnectBegin(bool)),ui.actionConnect,SLOT(setDisabled(bool)));
+		connect(xbee,SIGNAL(tryConnectEnd(bool)),ui.actionConnect,SLOT(setEnabled(bool)));
+	}
+#endif // XBEELINK
     if (serial == 0 && udp == 0 && sim == 0
 #ifdef OPAL_RT
             && opal == 0
 #endif
+#ifdef XBEELINK
+			&& xbee == 0
+#endif // XBEELINK
        ) {
         qDebug() << "Link is NOT a known link, can't open configuration window";
     }
 
+#ifdef XBEELINK
+	connect(ui.linkType,SIGNAL(currentIndexChanged(int)),this,SLOT(setLinkType(int)));
+#endif // XBEELINK
 
     // Open details pane for MAVLink if necessary
     MAVLinkProtocol* mavlink = dynamic_cast<MAVLinkProtocol*>(protocol);
@@ -184,8 +211,71 @@ QAction* CommConfigurationWindow::getAction()
 
 void CommConfigurationWindow::setLinkType(int linktype)
 {
-    // Adjust the form layout per link type
-    Q_UNUSED(linktype);
+	if(link->isConnected())
+	{
+		// close old configuration window
+		this->window()->close();
+	}
+	else
+	{
+		// delete old configuration window
+		this->remove();
+	}
+
+	LinkInterface *tmpLink(NULL);
+	switch(linktype)
+	{
+#ifdef XBEELINK
+		case 4:
+			{
+				XbeeLink *xbee = new XbeeLink();
+				tmpLink = xbee;
+				MainWindow::instance()->addLink(tmpLink);
+				break;
+			}
+#endif // XBEELINK
+		case 1:
+			{
+				UDPLink *udp = new UDPLink();
+				tmpLink = udp;
+				MainWindow::instance()->addLink(tmpLink);
+				break;
+			}
+			
+#ifdef OPAL_RT
+		case 3:
+			{
+				OpalLink* opal = new OpalLink();
+				tmpLink = opal;
+				MainWindow::instance()->addLink(tmpLink);
+				break;
+			}
+#endif // OPAL_RT
+		default:
+			{
+			}
+		case 0:
+			{
+				SerialLink *serial = new SerialLink();
+				tmpLink = serial;
+				MainWindow::instance()->addLink(tmpLink);
+				break;
+			}
+	}
+	// trigger new window
+
+	const int32_t& linkIndex(LinkManager::instance()->getLinks().indexOf(tmpLink));
+	const int32_t& linkID(LinkManager::instance()->getLinks()[linkIndex]->getId());
+
+	QList<QAction*> actions = MainWindow::instance()->listLinkMenuActions();
+	foreach (QAction* act, actions) 
+	{
+        if (act->data().toInt() == linkID) 
+        {
+            act->trigger();
+            break;
+        }
+    }
 }
 
 void CommConfigurationWindow::setProtocol(int protocol)

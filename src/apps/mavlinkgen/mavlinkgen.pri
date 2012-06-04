@@ -20,8 +20,7 @@
 
 
 
-INCLUDEPATH += .\
-    ui \
+INCLUDEPATH += ui \
     generator
 
 FORMS += ui/XMLCommProtocolWidget.ui
@@ -29,6 +28,7 @@ FORMS += ui/XMLCommProtocolWidget.ui
 HEADERS += \
     ui/XMLCommProtocolWidget.h \
     generator/MAVLinkXMLParser.h \
+    generator/MAVLinkXMLParserV10.h \
     ui/DomItem.h \
     ui/DomModel.h \
     ui/QGCMAVLinkTextEdit.h
@@ -37,6 +37,7 @@ SOURCES += \
     ui/DomItem.cc \
     ui/DomModel.cc \
     generator/MAVLinkXMLParser.cc \
+    generator/MAVLinkXMLParserV10.cc \
     ui/QGCMAVLinkTextEdit.cc
 
 RESOURCES += mavlinkgen.qrc

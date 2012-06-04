@@ -44,6 +44,11 @@
 
 #include "QGC.h"
 
+#ifdef QGC_PROTOBUF_ENABLED
+#include <tr1/memory>
+#include <pixhawk.pb.h>
+#endif
+
 Pixhawk3DWidget::Pixhawk3DWidget(QWidget* parent)
     : Q3DWidget(parent)
     , uas(NULL)
@@ -54,12 +59,11 @@ Pixhawk3DWidget::Pixhawk3DWidget(QWidget* parent)
     , displayImagery(true)
     , displayWaypoints(true)
     , displayRGBD2D(false)
-    , displayRGBD3D(false)
-    , enableRGBDColor(true)
+    , displayRGBD3D(true)
+    , enableRGBDColor(false)
     , enableTarget(false)
     , followCamera(true)
-    , enableFreenect(false)
-    , frame(MAV_FRAME_GLOBAL)
+    , frame(MAV_FRAME_LOCAL_NED)
     , lastRobotX(0.0f)
     , lastRobotY(0.0f)
     , lastRobotZ(0.0f)
@@ -92,16 +96,9 @@ Pixhawk3DWidget::Pixhawk3DWidget(QWidget* parent)
     targetNode = createTarget();
     rollingMap->addChild(targetNode);
 
-#ifdef QGC_LIBFREENECT_ENABLED
-    freenect.reset(new Freenect());
-    enableFreenect = freenect->init();
-#endif
-
     // generate RGBD model
-    if (enableFreenect) {
-        rgbd3DNode = createRGBD3D();
-        egocentricMap->addChild(rgbd3DNode);
-    }
+    rgbd3DNode = createRGBD3D();
+    egocentricMap->addChild(rgbd3DNode);
 
     setupHUD();
 
@@ -123,7 +120,8 @@ Pixhawk3DWidget::~Pixhawk3DWidget()
  *
  * @param uas the UAS/MAV to monitor/display with the HUD
  */
-void Pixhawk3DWidget::setActiveUAS(UASInterface* uas)
+void
+Pixhawk3DWidget::setActiveUAS(UASInterface* uas)
 {
     if (this->uas != NULL && this->uas != uas) {
         // Disconnect any previously connected active MAV
@@ -139,7 +137,7 @@ Pixhawk3DWidget::selectFrame(QString text)
     if (text.compare("Global") == 0) {
         frame = MAV_FRAME_GLOBAL;
     } else if (text.compare("Local") == 0) {
-        frame = MAV_FRAME_LOCAL;
+        frame = MAV_FRAME_LOCAL_NED;
     }
 
     getPosition(lastRobotX, lastRobotY, lastRobotZ);
@@ -231,7 +229,7 @@ Pixhawk3DWidget::selectTarget(void)
                 getGlobalCursorPosition(getMouseX(), getMouseY(), altitude);
 
             target.set(cursorWorldCoords.first, cursorWorldCoords.second);
-        } else if (frame == MAV_FRAME_LOCAL) {
+        } else if (frame == MAV_FRAME_LOCAL_NED) {
             double z = uas->getLocalZ();
 
             std::pair<double,double> cursorWorldCoords =
@@ -266,7 +264,7 @@ Pixhawk3DWidget::insertWaypoint(void)
                              latitude, longitude);
 
             wp = new Waypoint(0, longitude, latitude, altitude);
-        } else if (frame == MAV_FRAME_LOCAL) {
+        } else if (frame == MAV_FRAME_LOCAL_NED) {
             double z = uas->getLocalZ();
 
             std::pair<double,double> cursorWorldCoords =
@@ -278,7 +276,7 @@ Pixhawk3DWidget::insertWaypoint(void)
 
         if (wp) {
             wp->setFrame(frame);
-            uas->getWaypointManager()->addWaypoint(wp);
+            uas->getWaypointManager()->addWaypointEditable(wp);
         }
     }
 }
@@ -294,7 +292,7 @@ Pixhawk3DWidget::setWaypoint(void)
 {
     if (uas) {
         const QVector<Waypoint *> waypoints =
-            uas->getWaypointManager()->getWaypointList();
+            uas->getWaypointManager()->getWaypointEditableList();
         Waypoint* waypoint = waypoints.at(selectedWpIndex);
 
         if (frame == MAV_FRAME_GLOBAL) {
@@ -314,7 +312,7 @@ Pixhawk3DWidget::setWaypoint(void)
             waypoint->setX(longitude);
             waypoint->setY(latitude);
             waypoint->setZ(altitude);
-        } else if (frame == MAV_FRAME_LOCAL) {
+        } else if (frame == MAV_FRAME_LOCAL_NED) {
             double z = uas->getLocalZ();
 
             std::pair<double,double> cursorWorldCoords =
@@ -341,11 +339,11 @@ Pixhawk3DWidget::setWaypointAltitude(void)
     if (uas) {
         bool ok;
         const QVector<Waypoint *> waypoints =
-            uas->getWaypointManager()->getWaypointList();
+            uas->getWaypointManager()->getWaypointEditableList();
         Waypoint* waypoint = waypoints.at(selectedWpIndex);
 
         double altitude = waypoint->getZ();
-        if (frame == MAV_FRAME_LOCAL) {
+        if (frame == MAV_FRAME_LOCAL_NED) {
             altitude = -altitude;
         }
 
@@ -355,7 +353,7 @@ Pixhawk3DWidget::setWaypointAltitude(void)
         if (ok) {
             if (frame == MAV_FRAME_GLOBAL) {
                 waypoint->setZ(newAltitude);
-            } else if (frame == MAV_FRAME_LOCAL) {
+            } else if (frame == MAV_FRAME_LOCAL_NED) {
                 waypoint->setZ(-newAltitude);
             }
         }
@@ -367,7 +365,7 @@ Pixhawk3DWidget::clearAllWaypoints(void)
 {
     if (uas) {
         const QVector<Waypoint *> waypoints =
-            uas->getWaypointManager()->getWaypointList();
+            uas->getWaypointManager()->getWaypointEditableList();
         for (int i = waypoints.size() - 1; i >= 0; --i) {
             uas->getWaypointManager()->removeWaypoint(i);
         }
@@ -435,8 +433,8 @@ void
 Pixhawk3DWidget::buildLayout(void)
 {
     QComboBox* frameComboBox = new QComboBox(this);
-    frameComboBox->addItem("Global");
     frameComboBox->addItem("Local");
+    frameComboBox->addItem("Global");
     frameComboBox->setFixedWidth(70);
 
     QCheckBox* gridCheckBox = new QCheckBox(this);
@@ -555,11 +553,12 @@ Pixhawk3DWidget::display(void)
         updateTarget(robotX, robotY);
     }
 
-#ifdef QGC_LIBFREENECT_ENABLED
-    if (enableFreenect && (displayRGBD2D || displayRGBD3D)) {
-        updateRGBD();
+#ifdef QGC_PROTOBUF_ENABLED
+    if (displayRGBD2D || displayRGBD3D) {
+        updateRGBD(robotX, robotY, robotZ);
     }
 #endif
+
     updateHUD(robotX, robotY, robotZ, robotRoll, robotPitch, robotYaw, utmZone);
 
     // set node visibility
@@ -569,15 +568,15 @@ Pixhawk3DWidget::display(void)
     rollingMap->setChildValue(mapNode, displayImagery);
     rollingMap->setChildValue(waypointGroupNode, displayWaypoints);
     rollingMap->setChildValue(targetNode, enableTarget);
-    if (enableFreenect) {
-        egocentricMap->setChildValue(rgbd3DNode, displayRGBD3D);
-    }
+    egocentricMap->setChildValue(rgbd3DNode, displayRGBD3D);
     hudGroup->setChildValue(rgb2DGeode, displayRGBD2D);
     hudGroup->setChildValue(depth2DGeode, displayRGBD2D);
 
     lastRobotX = robotX;
     lastRobotY = robotY;
     lastRobotZ = robotZ;
+
+    layout()->update();
 }
 
 void
@@ -640,12 +639,11 @@ Pixhawk3DWidget::getPose(double& x, double& y, double& z,
 
             Imagery::LLtoUTM(latitude, longitude, x, y, utmZone);
             z = -altitude;
-        } else if (frame == MAV_FRAME_LOCAL) {
+        } else if (frame == MAV_FRAME_LOCAL_NED) {
             x = uas->getLocalX();
             y = uas->getLocalY();
             z = uas->getLocalZ();
         }
-
 
         roll = uas->getRoll();
         pitch = uas->getPitch();
@@ -665,15 +663,19 @@ void
 Pixhawk3DWidget::getPosition(double& x, double& y, double& z,
                              QString& utmZone)
 {
-    if (uas) {
-        if (frame == MAV_FRAME_GLOBAL) {
+    if (uas)
+    {
+        if (frame == MAV_FRAME_GLOBAL)
+        {
             double latitude = uas->getLatitude();
             double longitude = uas->getLongitude();
             double altitude = uas->getAltitude();
 
             Imagery::LLtoUTM(latitude, longitude, x, y, utmZone);
             z = -altitude;
-        } else if (frame == MAV_FRAME_LOCAL) {
+        }
+        else if (frame == MAV_FRAME_LOCAL_NED)
+        {
             x = uas->getLocalX();
             y = uas->getLocalY();
             z = uas->getLocalZ();
@@ -704,13 +706,17 @@ Pixhawk3DWidget::createGrid(void)
     osg::ref_ptr<osg::Vec3Array> coarseCoords(new osg::Vec3Array);
 
     // draw a 20m x 20m grid with 0.25m resolution
-    for (float i = -radius; i <= radius; i += resolution) {
-        if (fabsf(i - floor(i + 0.5f)) < 0.01f) {
+    for (float i = -radius; i <= radius; i += resolution)
+    {
+        if (fabs(i - floor(i + 0.5f)) < 0.01f)
+        {
             coarseCoords->push_back(osg::Vec3(i, -radius, 0.0f));
             coarseCoords->push_back(osg::Vec3(i, radius, 0.0f));
             coarseCoords->push_back(osg::Vec3(-radius, i, 0.0f));
             coarseCoords->push_back(osg::Vec3(radius, i, 0.0f));
-        } else {
+        }
+        else
+        {
             fineCoords->push_back(osg::Vec3(i, -radius, 0.0f));
             fineCoords->push_back(osg::Vec3(i, radius, 0.0f));
             fineCoords->push_back(osg::Vec3(-radius, i, 0.0f));
@@ -788,7 +794,7 @@ Pixhawk3DWidget::createMap(void)
 osg::ref_ptr<osg::Geode>
 Pixhawk3DWidget::createRGBD3D(void)
 {
-    int frameSize = 640 * 480;
+    int frameSize = 752 * 480;
 
     osg::ref_ptr<osg::Geode> geode(new osg::Geode);
     osg::ref_ptr<osg::Geometry> geometry(new osg::Geometry);
@@ -879,7 +885,8 @@ Pixhawk3DWidget::resizeHUD(void)
     int bottomHUDHeight = 25;
 
     osg::Vec3Array* vertices = static_cast<osg::Vec3Array*>(hudBackgroundGeometry->getVertexArray());
-    if (vertices == NULL || vertices->size() != 8) {
+    if (vertices == NULL || vertices->size() != 8)
+    {
         osg::ref_ptr<osg::Vec3Array> newVertices = new osg::Vec3Array(8);
         hudBackgroundGeometry->setVertexArray(newVertices);
 
@@ -897,7 +904,8 @@ Pixhawk3DWidget::resizeHUD(void)
 
     statusText->setPosition(osg::Vec3(10, height() - 15, -1.5));
 
-    if (rgb2DGeode.valid() && depth2DGeode.valid()) {
+    if (rgb2DGeode.valid() && depth2DGeode.valid())
+    {
         int windowWidth = (width() - 20) / 2;
         int windowHeight = 3 * windowWidth / 4;
         rgb2DGeode->setAttributes(10, (height() - windowHeight) / 2,
@@ -920,7 +928,8 @@ Pixhawk3DWidget::updateHUD(double robotX, double robotY, double robotZ,
     std::ostringstream oss;
     oss.setf(std::ios::fixed, std::ios::floatfield);
     oss.precision(2);
-    if (frame == MAV_FRAME_GLOBAL) {
+    if (frame == MAV_FRAME_GLOBAL)
+    {
         double latitude, longitude;
         Imagery::UTMtoLL(robotX, robotY, utmZone, latitude, longitude);
 
@@ -941,7 +950,9 @@ Pixhawk3DWidget::updateHUD(double robotX, double robotY, double robotZ,
         oss.precision(6);
         oss << " Cursor [" << cursorLatitude <<
             " " << cursorLongitude << "]";
-    } else if (frame == MAV_FRAME_LOCAL) {
+    }
+    else if (frame == MAV_FRAME_LOCAL_NED)
+    {
         oss << " x = " << robotX <<
             " y = " << robotY <<
             " z = " << robotZ <<
@@ -955,7 +966,8 @@ Pixhawk3DWidget::updateHUD(double robotX, double robotY, double robotZ,
     statusText->setText(oss.str());
 
     bool darkBackground = true;
-    if (mapNode->getImageryType() == Imagery::GOOGLE_MAP) {
+    if (mapNode->getImageryType() == Imagery::GOOGLE_MAP)
+    {
         darkBackground = false;
     }
 
@@ -966,34 +978,44 @@ Pixhawk3DWidget::updateHUD(double robotX, double robotY, double robotZ,
 void
 Pixhawk3DWidget::updateTrail(double robotX, double robotY, double robotZ)
 {
-    if (robotX == 0.0f || robotY == 0.0f || robotZ == 0.0f) {
+    if (robotX == 0.0f || robotY == 0.0f || robotZ == 0.0f)
+    {
         return;
     }
 
     bool addToTrail = false;
-    if (trail.size() > 0) {
+    if (trail.size() > 0)
+    {
         if (fabs(robotX - trail[trail.size() - 1].x()) > 0.01f ||
                 fabs(robotY - trail[trail.size() - 1].y()) > 0.01f ||
-                fabs(robotZ - trail[trail.size() - 1].z()) > 0.01f) {
+                fabs(robotZ - trail[trail.size() - 1].z()) > 0.01f)
+        {
             addToTrail = true;
         }
-    } else {
+    }
+    else
+    {
         addToTrail = true;
     }
 
-    if (addToTrail) {
+    if (addToTrail)
+    {
         osg::Vec3d p(robotX, robotY, robotZ);
-        if (trail.size() == trail.capacity()) {
+        if (trail.size() == trail.capacity())
+        {
             memcpy(trail.data(), trail.data() + 1,
                    (trail.size() - 1) * sizeof(osg::Vec3d));
             trail[trail.size() - 1] = p;
-        } else {
+        }
+        else
+        {
             trail.append(p);
         }
     }
 
     trailVertices->clear();
-    for (int i = 0; i < trail.size(); ++i) {
+    for (int i = 0; i < trail.size(); ++i)
+    {
         trailVertices->push_back(osg::Vec3d(trail[i].y() - robotY,
                                             trail[i].x() - robotX,
                                             -(trail[i].z() - robotZ)));
@@ -1008,12 +1030,14 @@ void
 Pixhawk3DWidget::updateImagery(double originX, double originY, double originZ,
                                const QString& zone)
 {
-    if (mapNode->getImageryType() == Imagery::BLANK_MAP) {
+    if (mapNode->getImageryType() == Imagery::BLANK_MAP)
+    {
         return;
     }
 
     double viewingRadius = cameraManipulator->getDistance() * 10.0;
-    if (viewingRadius < 100.0) {
+    if (viewingRadius < 100.0)
+    {
         viewingRadius = 100.0;
     }
 
@@ -1022,7 +1046,8 @@ Pixhawk3DWidget::updateImagery(double originX, double originY, double originZ,
     double maxResolution = 1048576.0;
 
     Imagery::ImageryType imageryType = mapNode->getImageryType();
-    switch (imageryType) {
+    switch (imageryType)
+    {
     case Imagery::GOOGLE_MAP:
         minResolution = 0.25;
         break;
@@ -1038,10 +1063,13 @@ Pixhawk3DWidget::updateImagery(double originX, double originY, double originZ,
     }
 
     double resolution = minResolution;
-    while (resolution * 2.0 < centerResolution) {
+    while (resolution * 2.0 < centerResolution)
+    {
         resolution *= 2.0;
     }
-    if (resolution > maxResolution) {
+
+    if (resolution > maxResolution)
+    {
         resolution = maxResolution;
     }
 
@@ -1055,14 +1083,16 @@ Pixhawk3DWidget::updateImagery(double originX, double originY, double originZ,
                     zone);
 
     // prefetch map tiles
-    if (resolution / 2.0 >= minResolution) {
+    if (resolution / 2.0 >= minResolution)
+    {
         mapNode->prefetch3D(viewingRadius / 2.0,
                             resolution / 2.0,
                             cameraManipulator->getCenter().y(),
                             cameraManipulator->getCenter().x(),
                             zone);
     }
-    if (resolution * 2.0 <= maxResolution) {
+    if (resolution * 2.0 <= maxResolution)
+    {
         mapNode->prefetch3D(viewingRadius * 2.0,
                             resolution * 2.0,
                             cameraManipulator->getCenter().y(),
@@ -1218,46 +1248,71 @@ float colormap_jet[128][3] = {
     {0.5f,0.0f,0.0f}
 };
 
-#ifdef QGC_LIBFREENECT_ENABLED
+#ifdef QGC_PROTOBUF_ENABLED
 void
-Pixhawk3DWidget::updateRGBD(void)
+Pixhawk3DWidget::updateRGBD(double robotX, double robotY, double robotZ)
 {
-    QSharedPointer<QByteArray> rgb = freenect->getRgbData();
-    if (!rgb.isNull()) {
-        rgbImage->setImage(640, 480, 1,
-                           GL_RGB, GL_RGB, GL_UNSIGNED_BYTE,
-                           reinterpret_cast<unsigned char *>(rgb->data()),
+    px::RGBDImage rgbdImage = uas->getRGBDImage();
+    px::PointCloudXYZRGB pointCloud = uas->getPointCloud();
+
+    if (rgbdImage.rows() > 0 && rgbdImage.cols() > 0)
+    {
+        rgbImage->setImage(rgbdImage.cols(), rgbdImage.rows(), 1,
+                           GL_LUMINANCE, GL_LUMINANCE, GL_UNSIGNED_BYTE,
+                           reinterpret_cast<unsigned char *>(&(*(rgbdImage.mutable_imagedata1()))[0]),
                            osg::Image::NO_DELETE);
         rgbImage->dirty();
-    }
 
-    QSharedPointer<QByteArray> coloredDepth = freenect->getColoredDepthData();
-    if (!coloredDepth.isNull()) {
-        depthImage->setImage(640, 480, 1,
+        QByteArray coloredDepth(rgbdImage.cols() * rgbdImage.rows() * 3, 0);
+        for (uint32_t r = 0; r < rgbdImage.rows(); ++r)
+        {
+            const float* depth = reinterpret_cast<const float*>(rgbdImage.imagedata2().c_str() + r * rgbdImage.step2());
+            uint8_t* pixel = reinterpret_cast<uint8_t*>(coloredDepth.data()) + r * rgbdImage.cols() * 3;
+            for (uint32_t c = 0; c < rgbdImage.cols(); ++c)
+            {
+                if (depth[c] != 0)
+                {
+                    int idx = fminf(depth[c], 7.0f) / 7.0f * 127.0f;
+                    idx = 127 - idx;
+
+                    pixel[0] = colormap_jet[idx][2] * 255.0f;
+                    pixel[1] = colormap_jet[idx][1] * 255.0f;
+                    pixel[2] = colormap_jet[idx][0] * 255.0f;
+                }
+
+                pixel += 3;
+            }
+        }
+
+        depthImage->setImage(rgbdImage.cols(), rgbdImage.rows(), 1,
                              GL_RGB, GL_RGB, GL_UNSIGNED_BYTE,
-                             reinterpret_cast<unsigned char *>(coloredDepth->data()),
+                             reinterpret_cast<unsigned char *>(coloredDepth.data()),
                              osg::Image::NO_DELETE);
         depthImage->dirty();
     }
-
-    QSharedPointer< QVector<Freenect::Vector6D> > pointCloud =
-        freenect->get6DPointCloudData();
 
     osg::Geometry* geometry = rgbd3DNode->getDrawable(0)->asGeometry();
 
     osg::Vec3Array* vertices = static_cast<osg::Vec3Array*>(geometry->getVertexArray());
     osg::Vec4Array* colors = static_cast<osg::Vec4Array*>(geometry->getColorArray());
-    for (int i = 0; i < pointCloud->size(); ++i) {
-        double x = pointCloud->at(i).x;
-        double y = pointCloud->at(i).y;
-        double z = pointCloud->at(i).z;
-        (*vertices)[i].set(x, z, -y);
+    for (int i = 0; i < pointCloud.points_size(); ++i) {
+        const px::PointCloudXYZRGB_PointXYZRGB& p = pointCloud.points(i);
+
+        double x = p.x() - robotX;
+        double y = p.y() - robotY;
+        double z = p.z() - robotZ;
+
+
+        (*vertices)[i].set(y, x, -z);
 
         if (enableRGBDColor) {
-            (*colors)[i].set(pointCloud->at(i).r / 255.0f,
-                             pointCloud->at(i).g / 255.0f,
-                             pointCloud->at(i).b / 255.0f,
-                             1.0f);
+            float rgb = p.rgb();
+
+            float b = *(reinterpret_cast<unsigned char*>(&rgb)) / 255.0f;
+            float g = *(1 + reinterpret_cast<unsigned char*>(&rgb)) / 255.0f;
+            float r = *(2 + reinterpret_cast<unsigned char*>(&rgb)) / 255.0f;
+
+            (*colors)[i].set(r, g, b, 1.0f);
         } else {
             double dist = sqrt(x * x + y * y + z * z);
             int colorIndex = static_cast<int>(fmin(dist / 7.0 * 127.0, 127.0));
@@ -1270,10 +1325,10 @@ Pixhawk3DWidget::updateRGBD(void)
 
     if (geometry->getNumPrimitiveSets() == 0) {
         geometry->addPrimitiveSet(new osg::DrawArrays(osg::PrimitiveSet::POINTS,
-                                  0, pointCloud->size()));
+                                  0, pointCloud.points_size()));
     } else {
         osg::DrawArrays* drawarrays = static_cast<osg::DrawArrays*>(geometry->getPrimitiveSet(0));
-        drawarrays->setCount(pointCloud->size());
+        drawarrays->setCount(pointCloud.points_size());
     }
 }
 #endif

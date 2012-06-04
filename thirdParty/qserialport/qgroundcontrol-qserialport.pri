@@ -4,8 +4,7 @@
 
 DEFINES += QSERIALPORT_STATIC
 
-DEPENDPATH += . \
-              include/QtSerialPort \
+DEPENDPATH += include/QtSerialPort \
               src/common \
               src/posix \
               src/win32

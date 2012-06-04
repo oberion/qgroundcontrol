@@ -38,6 +38,7 @@ This file is part of the QGROUNDCONTROL project
 #include <QQueue>
 #include <QMutex>
 #include <QMap>
+#include <qmath.h>
 #include <inttypes.h>
 #include "QGCMAVLink.h"
 
@@ -128,6 +129,7 @@ protected:
     QString name;
     qint64 timeOffset;
     mavlink_sys_status_t status;
+    mavlink_heartbeat_t system;
     QMap<QString, float> onboardParams;
 
     void enqueue(uint8_t* stream, uint8_t* index, mavlink_message_t* msg);

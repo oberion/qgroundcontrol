@@ -40,19 +40,22 @@ This file is part of the QGROUNDCONTROL project
 //#include <netinet/in.h>
 
 UDPLink::UDPLink(QHostAddress host, quint16 port)
+	: socket(NULL)
 {
     this->host = host;
     this->port = port;
     this->connectState = false;
     // Set unique ID and add link to the list of links
     this->id = getNextLinkId();
-    this->name = tr("UDP Link (port:%1)").arg(14550);
-    LinkManager::instance()->add(this);
+	this->name = tr("UDP Link (port:%1)").arg(this->port);
+	emit nameChanged(this->name);
+    // LinkManager::instance()->add(this);
 }
 
 UDPLink::~UDPLink()
 {
     disconnect();
+	this->deleteLater();
 }
 
 /**
@@ -61,23 +64,39 @@ UDPLink::~UDPLink()
  **/
 void UDPLink::run()
 {
-//    forever
-//    {
-//        QGC::SLEEP::msleep(5000);
-//    }
-    exec();
+	exec();
 }
 
-void UDPLink::setAddress(QString address)
+void UDPLink::setAddress(QHostAddress host)
 {
-    Q_UNUSED(address);
+    bool reconnect(false);
+	if(this->isConnected())
+	{
+		disconnect();
+		reconnect = true;
+	}
+	this->host = host;
+	if(reconnect)
+	{
+		connect();
+	}
 }
 
 void UDPLink::setPort(int port)
 {
+	bool reconnect(false);
+	if(this->isConnected())
+	{
+		disconnect();
+		reconnect = true;
+	}
     this->port = port;
-    disconnect();
-    connect();
+	this->name = tr("UDP Link (port:%1)").arg(this->port);
+	emit nameChanged(this->name);
+	if(reconnect)
+	{
+		connect();
+	}
 }
 
 /**
@@ -85,9 +104,10 @@ void UDPLink::setPort(int port)
  */
 void UDPLink::addHost(const QString& host)
 {
-    qDebug() << "UDP:" << "ADDING HOST:" << host;
-    if (host.contains(":")) {
-        qDebug() << "HOST: " << host.split(":").first();
+    //qDebug() << "UDP:" << "ADDING HOST:" << host;
+    if (host.contains(":"))
+    {
+        //qDebug() << "HOST: " << host.split(":").first();
         QHostInfo info = QHostInfo::fromName(host.split(":").first());
         if (info.error() == QHostInfo::NoError)
         {
@@ -103,9 +123,11 @@ void UDPLink::addHost(const QString& host)
                 }
             }
             hosts.append(address);
-            qDebug() << "Address:" << address.toString();
+			this->setAddress(address);
+            //qDebug() << "Address:" << address.toString();
             // Set port according to user input
             ports.append(host.split(":").last().toInt());
+			this->setPort(host.split(":").last().toInt());
         }
     }
     else
@@ -129,14 +151,18 @@ void UDPLink::removeHost(const QString& hostname)
     QHostInfo info = QHostInfo::fromName(host);
     QHostAddress address;
     QList<QHostAddress> hostAddresses = info.addresses();
-    for (int i = 0; i < hostAddresses.size(); i++) {
+    for (int i = 0; i < hostAddresses.size(); i++)
+    {
         // Exclude loopback IPv4 and all IPv6 addresses
-        if (!hostAddresses.at(i).toString().contains(":")) {
+        if (!hostAddresses.at(i).toString().contains(":"))
+        {
             address = hostAddresses.at(i);
         }
     }
-    for (int i = 0; i < hosts.count(); ++i) {
-        if (hosts.at(i) == address) {
+    for (int i = 0; i < hosts.count(); ++i)
+    {
+        if (hosts.at(i) == address)
+        {
             hosts.removeAt(i);
             ports.removeAt(i);
         }
@@ -154,7 +180,8 @@ void UDPLink::writeBytes(const char* data, qint64 size)
 #ifdef UDPLINK_DEBUG
         QString bytes;
         QString ascii;
-        for (int i=0; i<size; i++) {
+        for (int i=0; i<size; i++)
+        {
             unsigned char v = data[i];
             bytes.append(QString().sprintf("%02x ", v));
             if (data[i] > 31 && data[i] < 127)
@@ -182,40 +209,42 @@ void UDPLink::writeBytes(const char* data, qint64 size)
  **/
 void UDPLink::readBytes()
 {
-    const qint64 maxLength = 65536;
-    char data[maxLength];
-    QHostAddress sender;
-    quint16 senderPort;
+    while (socket->hasPendingDatagrams())
+    {
+        QByteArray datagram;
+        datagram.resize(socket->pendingDatagramSize());
 
-    unsigned int s = socket->pendingDatagramSize();
-    if (s > maxLength) std::cerr << __FILE__ << __LINE__ << " UDP datagram overflow, allowed to read less bytes than datagram size" << std::endl;
-    socket->readDatagram(data, maxLength, &sender, &senderPort);
+        QHostAddress sender;
+        quint16 senderPort;
+        socket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
 
-    // FIXME TODO Check if this method is better than retrieving the data by individual processes
-    QByteArray b(data, s);
-    emit bytesReceived(this, b);
+        // FIXME TODO Check if this method is better than retrieving the data by individual processes
+        emit bytesReceived(this, datagram);
 
-//    // Echo data for debugging purposes
-//    std::cerr << __FILE__ << __LINE__ << "Received datagram:" << std::endl;
-//    int i;
-//    for (i=0; i<s; i++)
-//    {
-//        unsigned int v=data[i];
-//        fprintf(stderr,"%02x ", v);
-//    }
-//    std::cerr << std::endl;
+//        // Echo data for debugging purposes
+//        std::cerr << __FILE__ << __LINE__ << "Received datagram:" << std::endl;
+//        int i;
+//        for (i=0; i<s; i++)
+//        {
+//            unsigned int v=data[i];
+//            fprintf(stderr,"%02x ", v);
+//        }
+//        std::cerr << std::endl;
 
 
-    // Add host to broadcast list if not yet present
-    if (!hosts.contains(sender)) {
-        hosts.append(sender);
-        ports.append(senderPort);
-        //        ports->insert(sender, senderPort);
-    } else {
-        int index = hosts.indexOf(sender);
-        ports.replace(index, senderPort);
+        // Add host to broadcast list if not yet present
+        if (!hosts.contains(sender))
+        {
+            hosts.append(sender);
+            ports.append(senderPort);
+            //        ports->insert(sender, senderPort);
+        }
+        else
+        {
+            int index = hosts.indexOf(sender);
+            ports.replace(index, senderPort);
+        }
     }
-
 }
 
 
@@ -236,8 +265,14 @@ qint64 UDPLink::bytesAvailable()
  **/
 bool UDPLink::disconnect()
 {
-    delete socket;
-    socket = NULL;
+	this->quit();
+	this->wait();
+
+        if(socket)
+	{
+		delete socket;
+		socket = NULL;
+	}
 
     connectState = false;
 
@@ -253,7 +288,19 @@ bool UDPLink::disconnect()
  **/
 bool UDPLink::connect()
 {
-    socket = new QUdpSocket(this);
+	if(this->isRunning())
+	{
+		this->quit();
+		this->wait();
+	}
+	this->hardwareConnect();
+    start(HighPriority);
+    return true;
+}
+
+bool UDPLink::hardwareConnect(void)
+{
+	socket = new QUdpSocket();
 
     //Check if we are using a multicast-address
 //    bool multicast = false;
@@ -300,10 +347,9 @@ bool UDPLink::connect()
         emit connected();
         connectionStartTime = QGC::groundTimeUsecs()/1000;
     }
-
-    start(HighPriority);
-    return connectState;
+	return connectState;
 }
+
 
 /**
  * @brief Check if connection is active.

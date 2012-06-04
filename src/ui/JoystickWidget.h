@@ -68,13 +68,16 @@ public slots:
     /** @brief Wrist rotation */
     void setZ(float z);
     /** @brief Hat switch position */
-    void setHat(float x, float y);
+    void setHat(int x, int y);
     /** @brief Clear keys */
     void clearKeys();
     /** @brief Joystick keys, as labeled on the joystick */
     void pressKey(int key);
     /** @brief Update status string */
     void updateStatus(const QString& status);
+
+protected slots:
+	void calibration(void);
 
 protected:
     /** @brief UI change event */
@@ -83,6 +86,7 @@ protected:
 
 private:
     Ui::JoystickWidget *m_ui;
+
 };
 
 #endif // JOYSTICKWIDGET_H
