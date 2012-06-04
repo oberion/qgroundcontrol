@@ -130,6 +130,9 @@ contains(MAVLINK_CONF, senseSoar) {
     INCLUDEPATH += $$BASEDIR/../mavlink/include/SenseSoar
     INCLUDEPATH += $$BASEDIR/thirdParty/mavlink/include/SenseSoar
     DEFINES += QGC_USE_SENSESOAR_MESSAGES
+    FORMS += src\ui\AirVelocityWidget.ui
+    HEADERS += AirVelocityWidget.h
+    SOURCES += AirVelocityWidget.cpp
 }
 
 

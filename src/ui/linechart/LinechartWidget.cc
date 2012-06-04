@@ -313,8 +313,8 @@ void LinechartWidget::appendData(int uasId, QString curve, double value, quint64
     // Log data
     if (logging)
     {
-        if (activePlot->isVisible(curve+unit))
-        {
+//        if (activePlot->isVisible(curve+unit))
+//        {
             if (usec == 0) usec = QGC::groundTimeMilliseconds();
             if (logStartTime == 0) logStartTime = usec;
             qint64 time = usec - logStartTime;
@@ -322,7 +322,7 @@ void LinechartWidget::appendData(int uasId, QString curve, double value, quint64
 
             logFile->write(QString(QString::number(time) + "\t" + QString::number(uasId) + "\t" + curve + "\t" + QString::number(value,'g',18) + "\n").toLatin1());
             logFile->flush();
-        }
+//        }
     }
 }
 
@@ -346,8 +346,8 @@ void LinechartWidget::appendData(int uasId, const QString& curve, const QString&
     // Log data
     if (logging)
     {
-        if (activePlot->isVisible(curve+unit))
-        {
+//        if (activePlot->isVisible(curve+unit))
+//        {
             if (usec == 0) usec = QGC::groundTimeMilliseconds();
             if (logStartTime == 0) logStartTime = usec;
             qint64 time = usec - logStartTime;
@@ -355,7 +355,7 @@ void LinechartWidget::appendData(int uasId, const QString& curve, const QString&
 
             logFile->write(QString(QString::number(time) + "\t" + QString::number(uasId) + "\t" + curve + "\t" + QString::number(value,'g',18) + "\n").toLatin1());
             logFile->flush();
-        }
+//        }
     }
 }
 
@@ -391,8 +391,8 @@ void LinechartWidget::appendData(int uasId, const QString& curve, const QString&
     // Log data
     if (logging)
     {
-        if (activePlot->isVisible(curve+unit))
-        {
+//        if (activePlot->isVisible(curve+unit))
+//        {
             if (usec == 0) usec = QGC::groundTimeMilliseconds();
             if (logStartTime == 0) logStartTime = usec;
             qint64 time = usec - logStartTime;
@@ -400,7 +400,7 @@ void LinechartWidget::appendData(int uasId, const QString& curve, const QString&
 
             logFile->write(QString(QString::number(time) + "\t" + QString::number(uasId) + "\t" + curve + "\t" + QString::number(value) + "\n").toLatin1());
             logFile->flush();
-        }
+//        }
     }
 }
 
@@ -426,8 +426,8 @@ void LinechartWidget::appendData(int uasId, const QString& curve, const QString&
     // Log data
     if (logging)
     {
-        if (activePlot->isVisible(curve+unit))
-        {
+//        if (activePlot->isVisible(curve+unit))
+//        {
             if (usec == 0) usec = QGC::groundTimeMilliseconds();
             if (logStartTime == 0) logStartTime = usec;
             qint64 time = usec - logStartTime;
@@ -435,7 +435,7 @@ void LinechartWidget::appendData(int uasId, const QString& curve, const QString&
 
             logFile->write(QString(QString::number(time) + "\t" + QString::number(uasId) + "\t" + curve + "\t" + QString::number(value) + "\n").toLatin1());
             logFile->flush();
-        }
+//        }
     }
 }
 

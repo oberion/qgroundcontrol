@@ -24,6 +24,10 @@ protected:
 	uint8_t senseSoarState;
 private:
 	void quat2euler(const double *quat, double &roll, double &pitch, double &yaw); 
+signals:
+	void AirSpeedChanged(float AirSpeed);
+	void AoAChanged(float AoA);
+	void SideSlipChanged(float Beta);
 };
 
 #endif // _SENSESOARMAV_H_

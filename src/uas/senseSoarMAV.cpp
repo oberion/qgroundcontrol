@@ -71,8 +71,11 @@ void senseSoarMAV::receiveMessage(LinkInterface *link, mavlink_message_t message
 				mavlink_msg_obs_air_velocity_decode(&message,&airVMsg);
 				quint64 time = getUnixTime();
 				emit valueChanged(uasId, "AirVel. mag", "m/s", airVMsg.magnitude, time);
+				emit AirSpeedChanged(airVMsg.magnitude);
 				emit valueChanged(uasId, "AirVel. AoA", "rad", airVMsg.aoa, time);
+				emit AoAChanged(airVMsg.aoa);
 				emit valueChanged(uasId, "AirVel. Slip", "rad", airVMsg.slip, time);
+				emit SideSlipChanged(airVMsg.slip);
 				break;
 			}
 		case MAVLINK_MSG_ID_OBS_ATTITUDE:

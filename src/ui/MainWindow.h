@@ -333,6 +333,7 @@ protected:
     QPointer<QDockWidget> headDown1DockWidget;
     QPointer<QDockWidget> headDown2DockWidget;
     QPointer<QDockWidget> watchdogControlDockWidget;
+	QPointer<QDockWidget> AirVelocityDockWidget;
 
     QPointer<QDockWidget> headUpDockWidget;
     QPointer<QDockWidget> video1DockWidget;

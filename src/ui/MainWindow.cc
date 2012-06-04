@@ -62,6 +62,7 @@ This file is part of the QGROUNDCONTROL project
 // FIXME Move
 #include "PxQuadMAV.h"
 #include "SlugsMAV.h"
+#include "AirVelocityWidget.h"
 
 
 #include "LogCompressor.h"
@@ -1306,6 +1307,18 @@ void MainWindow::UASCreated(UASInterface* uas)
                 addTool(watchdogControlDockWidget, tr("Process Control"), Qt::BottomDockWidgetArea);
             }
         }
+#ifdef QGC_USE_SENSESOAR_MESSAGES
+		if (uas->getAutopilotType() == MAV_AUTOPILOT_SENSESOAR)
+		{
+			if (!AirVelocityDockWidget)
+			{
+				AirVelocityDockWidget = new QDockWidget(tr("Air velocity"), this);
+				AirVelocityDockWidget->setWidget( new AirVelocityWidget(this));
+				AirVelocityDockWidget->setObjectName(tr("Air Velocity Updates"));
+				addTool(AirVelocityDockWidget, tr("Air Velocity"),Qt::RightDockWidgetArea);
+			}
+		}
+#endif
 
         // Change the view only if this is the first UAS
 
