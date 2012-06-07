@@ -69,7 +69,6 @@ int main(int argc, char *argv[])
 #ifdef Q_OS_WIN
     qInstallMsgHandler( msgHandler );
 #endif
-
     QGCCore core(argc, argv);
     return core.exec();
 }

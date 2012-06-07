@@ -158,7 +158,7 @@ void senseSoarMAV::receiveMessage(LinkInterface *link, mavlink_message_t message
 				emit valueChanged(uasId, "Power generating sys3", "W", pmMsg.PwGen[2], time);
 				break;
 			}
-		case MAVLINK_MSG_ID_SYS_STAT:
+		case MAVLINK_MSG_ID_SYS_Stat:
 			{
 #define STATE_WAKING_UP            0x0  // TO DO: not important here, only for the visualisation needed
 #define STATE_ON_GROUND            0x1
