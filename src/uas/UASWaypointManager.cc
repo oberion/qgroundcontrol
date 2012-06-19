@@ -2,7 +2,7 @@
 
 QGroundControl Open Source Ground Control Station
 
-(c) 2009, 2010 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
+(c) 2009-2012 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
 
 This file is part of the QGROUNDCONTROL project
 
@@ -870,10 +870,13 @@ void UASWaypointManager::writeWaypoints()
 
             //send the waypoint count to UAS (this starts the send transaction)
             sendWaypointCount();
-        } else if (waypointsEditable.count() == 0) {
+        } else if (waypointsEditable.count() == 0)
+        {
             sendWaypointClearAll();
         }
-    } else {
+    }
+    else
+    {
         //we're in another transaction, ignore command
         qDebug() << "UASWaypointManager::sendWaypoints() doing something else ignoring command";
     }
