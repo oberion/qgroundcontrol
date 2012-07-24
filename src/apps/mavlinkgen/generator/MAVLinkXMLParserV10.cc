@@ -97,7 +97,7 @@ bool MAVLinkXMLParserV10::generate()
 {
     emit parseState(tr("Generator ready."));
 #ifdef Q_OS_WIN
-    QString generatorCall("files/mavgen.exe");
+    QString generatorCall("files/mavlink_generator/generator/mavgen.exe");
 #endif
 #if (defined Q_OS_MAC) || (defined Q_OS_LINUX)
     QString generatorCall("python");
