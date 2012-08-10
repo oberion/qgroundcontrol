@@ -51,7 +51,7 @@ MOC_DIR = $${BUILDDIR}/moc
 UI_DIR = $${BUILDDIR}/ui
 RCC_DIR = $${BUILDDIR}/rcc
 MAVLINK_CONF = ""
-MAVLINKPATH = $$BASEDIR/mavlink/include/mavlink/v1.0
+MAVLINKPATH = $$BASEDIR/libs/mavlink/include/mavlink/v1.0
 DEFINES += MAVLINK_NO_DATA
 
 win32 {
@@ -61,6 +61,14 @@ win32 {
     QMAKE_MOC = "$$(QTDIR)/bin/moc.exe"
     QMAKE_RCC = "$$(QTDIR)/bin/rcc.exe"
     QMAKE_QMAKE = "$$(QTDIR)/bin/qmake.exe"
+	
+	# Build QAX for GoogleEarth API access
+	!exists( $(QTDIR)/src/activeqt/Makefile ) {
+		message( Making QAx (ONE TIME) )
+		system( cd $$(QTDIR)\\src\\activeqt && $$(QTDIR)\\bin\\qmake.exe )
+		system( cd $$(QTDIR)\\src\\activeqt\\container && $$(QTDIR)\\bin\\qmake.exe )
+		system( cd $$(QTDIR)\\src\\activeqt\\control && $$(QTDIR)\\bin\\qmake.exe )
+	}
 }
 
 
@@ -68,26 +76,23 @@ win32 {
 #################################################################
 # EXTERNAL LIBRARY CONFIGURATION
 
-# Include NMEA parsing library (currently unused)
-include(src/libs/nmea/nmea.pri)
-
 # EIGEN matrix library (header-only)
-INCLUDEPATH += src/libs/eigen
+INCLUDEPATH += libs/eigen
 
 # OPMapControl library (from OpenPilot)
-include(src/libs/utils/utils_external.pri)
-include(src/libs/opmapcontrol/opmapcontrol_external.pri)
+include(libs/utils/utils_external.pri)
+include(libs/opmapcontrol/opmapcontrol_external.pri)
 DEPENDPATH += \
-    src/libs/utils \
-    src/libs/utils/src \
-    src/libs/opmapcontrol \
-    src/libs/opmapcontrol/src \
-    src/libs/opmapcontrol/src/mapwidget
+    libs/utils \
+    libs/utils/src \
+    libs/opmapcontrol \
+    libs/opmapcontrol/src \
+    libs/opmapcontrol/src/mapwidget
 
 INCLUDEPATH += \
-    src/libs/utils \
-    src/libs \
-    src/libs/opmapcontrol
+    libs/utils \
+    libs \
+    libs/opmapcontrol
 
 # If the user config file exists, it will be included.
 # if the variable MAVLINK_CONF contains the name of an
@@ -106,7 +111,11 @@ isEmpty(MAVLINK_CONF) {
     INCLUDEPATH += $$MAVLINKPATH/common
 } else {
     INCLUDEPATH += $$MAVLINKPATH/$$MAVLINK_CONF
+<<<<<<< HEAD
     DEFINES += 'MAVLINK_CONF=$${MAVLINK_CONF}.h'
+=======
+    #DEFINES += 'MAVLINK_CONF="$${MAVLINK_CONF}.h"'
+>>>>>>> remotes/mavlink/master
     DEFINES += $$sprintf('QGC_USE_%1_MESSAGES', $$upper($$MAVLINK_CONF))
 }
 
@@ -130,29 +139,29 @@ include(src/apps/mavlinkgen/mavlinkgen.pri)
 
 
 # Include QWT plotting library
-include(src/lib/qwt/qwt.pri)
+include(libs/qwt/qwt.pri)
 DEPENDPATH += . \
     plugins \
-    thirdParty/qserialport/include \
-    thirdParty/qserialport/include/QtSerialPort \
-    thirdParty/qserialport \
-    src/libs/qextserialport
+    libs/thirdParty/qserialport/include \
+    libs/thirdParty/qserialport/include/QtSerialPort \
+    libs/thirdParty/qserialport \
+    libs/qextserialport
 
 INCLUDEPATH += . \
-    thirdParty/qserialport/include \
-    thirdParty/qserialport/include/QtSerialPort \
-    thirdParty/qserialport/src \
-    src/libs/qextserialport
+    libs/thirdParty/qserialport/include \
+    libs/thirdParty/qserialport/include/QtSerialPort \
+    libs/thirdParty/qserialport/src \
+    libs/qextserialport
 
 # Include serial port library (QSerial)
 include(qserialport.pri)
 
 # Serial port detection (ripped-off from qextserialport library)
-macx|macx-g++|macx-g++42::SOURCES += src/libs/qextserialport/qextserialenumerator_osx.cpp
-linux-g++::SOURCES += src/libs/qextserialport/qextserialenumerator_unix.cpp
-linux-g++-64::SOURCES += src/libs/qextserialport/qextserialenumerator_unix.cpp
-win32::SOURCES += src/libs/qextserialport/qextserialenumerator_win.cpp
-win32-msvc2008|win32-msvc2010::SOURCES += src/libs/qextserialport/qextserialenumerator_win.cpp
+macx|macx-g++|macx-g++42::SOURCES += libs/qextserialport/qextserialenumerator_osx.cpp
+linux-g++::SOURCES += libs/qextserialport/qextserialenumerator_unix.cpp
+linux-g++-64::SOURCES += libs/qextserialport/qextserialenumerator_unix.cpp
+win32::SOURCES += libs/qextserialport/qextserialenumerator_win.cpp
+win32-msvc2008|win32-msvc2010::SOURCES += libs/qextserialport/qextserialenumerator_win.cpp
 
 # Input
 FORMS += src/ui/MainWindow.ui \
@@ -325,7 +334,7 @@ HEADERS += src/MG.h \
     src/ui/map/Waypoint2DIcon.h \
     src/ui/map/QGCMapTool.h \
     src/ui/map/QGCMapToolBar.h \
-    src/libs/qextserialport/qextserialenumerator.h \
+    libs/qextserialport/qextserialenumerator.h \
     src/QGCGeo.h \
     src/ui/QGCToolBar.h \
     src/ui/QGCMAVLinkInspector.h \
@@ -386,7 +395,7 @@ contains(DEPENDENCIES_PRESENT, protobuf):contains(MAVLINK_CONF, pixhawk) {
     message("Including headers for Protocol Buffers")
 
     # Enable only if protobuf is available
-    HEADERS += mavlink/include/mavlink/v1.0/pixhawk/pixhawk.pb.h \
+    HEADERS += libs/mavlink/include/mavlink/v1.0/pixhawk/pixhawk.pb.h \
         src/ui/map3D/ObstacleGroupNode.h \
         src/ui/map3D/GLOverlayGeode.h
 }
@@ -549,7 +558,7 @@ contains(DEPENDENCIES_PRESENT, protobuf):contains(MAVLINK_CONF, pixhawk) {
     message("Including sources for Protocol Buffers")
 
     # Enable only if protobuf is available
-    SOURCES += mavlink/share/mavlink/src/v1.0/pixhawk/pixhawk.pb.cc \
+    SOURCES += libs/mavlink/share/mavlink/src/v1.0/pixhawk/pixhawk.pb.cc \
         src/ui/map3D/ObstacleGroupNode.cc \
         src/ui/map3D/GLOverlayGeode.cc
 }
@@ -599,8 +608,8 @@ win32-msvc2008|win32-msvc2010|linux {
         src/comm/HexSpinBox.cpp \
         src/ui/XbeeConfigurationWindow.cpp
     DEFINES += XBEELINK
-    INCLUDEPATH += thirdParty/libxbee
+    INCLUDEPATH += libs/thirdParty/libxbee
 # TO DO: build library when it does not exist already
-    LIBS += -LthirdParty/libxbee/lib \
+    LIBS += -Llibs/thirdParty/libxbee/lib \
         -llibxbee
 }
