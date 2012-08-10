@@ -598,7 +598,7 @@ TRANSLATIONS += es-MX.ts \
 
 # xbee support
 # libxbee only supported by linux and windows systems
-win32-msvc2008|win32-msvc2010|linux {
+win32-msvc2008|win32-msvc2010|linux-g++|linux-g++-64 {
     HEADERS += src/comm/XbeeLinkInterface.h \
         src/comm/XbeeLink.h \
         src/comm/HexSpinBox.h \
@@ -609,7 +609,7 @@ win32-msvc2008|win32-msvc2010|linux {
         src/ui/XbeeConfigurationWindow.cpp
     DEFINES += XBEELINK
     INCLUDEPATH += libs/thirdParty/libxbee
-# TO DO: build library when it does not exist already
-    LIBS += -Llibs/thirdParty/libxbee/lib \
-        -llibxbee
+    LIBS += -Llibs/thirdParty/libxbee/lib
+    win32-msvc2008|win32-msvc2010::LIBS += -llibxbee
+	linux-g++|linux-g++-64::LIBS += -lxbee
 }
